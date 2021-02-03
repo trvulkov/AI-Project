@@ -80,7 +80,7 @@ def scan(image, debug): # performs edge detection and returns the relevant part 
     # apply the four point transform to obtain a top-down view of the original image
     warped = four_point_transform(orig, screenContour.reshape(4, 2) * ratio)
 
-    if debug: # show the original and scanned images
+    if debug: # show the scanned image
         cv2.imshow("Scanned", imutils.resize(warped, height = 500))
         cv2.waitKey()
 
