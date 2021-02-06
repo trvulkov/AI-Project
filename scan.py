@@ -2,6 +2,7 @@ import numpy as np
 import argparse
 import cv2
 import imutils
+from skimage.filters import threshold_local
 
 # all lists of points must maintain a consistent order: top-left, top-right, bottom-right, bottom-left
 def order_points(pts): # takes a list of 4 points and returns them in the proper order
@@ -40,16 +41,17 @@ def four_point_transform(image, pts): # performs a perspective transformation to
 
     return warped
 
-def scan(image, debug): # performs edge detection and returns the relevant part (the document) of the image 
+def scan(image, debug, effect): # performs edge detection and returns the relevant part (the document) of the image 
     # we resize the image to have a height of 500 pixels in order to make the algorithm work better and faster
     ratio = image.shape[0] / 500.0 # compute the ratio of the old height to the new height
     orig = image.copy() # clone the image, so we can perform the scanning on the original image
     image = imutils.resize(image, height = 500)
 
-    blurred = cv2.GaussianBlur(image, (5, 5), 0) # Gaussian blurring to remove high frequency noise
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) # convert the image to grayscale
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0) # Gaussian blurring to remove high frequency noise
     edged = cv2.Canny(blurred, 75, 200) # Canny edge detection
 
-    if debug: # show the original image and the edge detected image
+    if debug: # show the original image and an image with the results of the edge detection
         cv2.imshow("Image", image)
         cv2.imshow("Edged", edged)
 
@@ -57,10 +59,10 @@ def scan(image, debug): # performs edge detection and returns the relevant part 
     # (1) the document to be scanned is the main focus of the image
     # (2) the document is rectangular, and thus will have four distinct edges
     # (3) thus, the largest contour in the image with exactly four points is our piece of paper to be scanned
-    # so in order to find the part that we need, we find the contours in the edge-detected image, keeping only the largest ones, and initialize the screen contour
+    # so in order to find the part that we need, we find the contours in the edge-detected image, and pick the largest one with four edges
     contours = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     contours = imutils.grab_contours(contours)
-    contours = sorted(contours, key = cv2.contourArea, reverse = True)[:5]
+    contours = sorted(contours, key = cv2.contourArea, reverse = True)
 
     # loop over the contours
     for contour in contours:
@@ -80,6 +82,12 @@ def scan(image, debug): # performs edge detection and returns the relevant part 
     # apply the four point transform to obtain a top-down view of the original image
     warped = four_point_transform(orig, screenContour.reshape(4, 2) * ratio)
 
+    if effect:
+        # convert the warped image to grayscale, then threshold it to give it that 'black and white' paper effect
+        warped = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+        T = threshold_local(warped, 33, offset = 10, method = "gaussian")
+        warped = (warped > T).astype("uint8") * 255
+
     if debug: # show the scanned image
         cv2.imshow("Scanned", imutils.resize(warped, height = 500))
         cv2.waitKey()
@@ -90,13 +98,15 @@ def parse():
     ap = argparse.ArgumentParser()
     ap.add_argument("--image", required = True, help = "Path to the image")
     ap.add_argument("-debug", action="store_true", help = "Debug mode to display images of the various steps")
+    ap.add_argument("-effect", action="store_true", help = "Convert the final image to grayscale and apply a threshold to give it the look of scanned paper")
 
     args = vars(ap.parse_args())
 
     image = cv2.imread(args["image"])
     debug = args["debug"]
+    effect = args["effect"]
 
-    warped = scan(image, debug)
+    warped = scan(image, debug, effect)
 
     cv2.imwrite("output.png", warped)
 
