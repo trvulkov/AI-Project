@@ -3,6 +3,8 @@ import argparse
 import cv2
 import imutils
 from skimage.filters import threshold_local
+import pytesseract
+#from canny import cannyEdgeDetector
 
 # all lists of points must maintain a consistent order: top-left, top-right, bottom-right, bottom-left
 def order_points(pts): # takes a list of 4 points and returns them in the proper order
@@ -94,7 +96,26 @@ def scan(image, debug, effect): # performs edge detection and returns the releva
 
     return warped
 
-def parse(): 
+def ocr(image):
+    #img = image.copy()
+    img = cv2.imread('./output.png')
+
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) # grayscale
+    gray, img_bin = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    gray = cv2.bitwise_not(img_bin)
+
+    kernel = np.ones((2, 1), np.uint8)
+    img = cv2.erode(gray, kernel, iterations=1)
+    img = cv2.dilate(img, kernel, iterations=1)
+
+    result = pytesseract.image_to_string(img, lang="bul")
+
+    text_file = open("output.txt", "w")
+    n = text_file.write(result)
+    text_file.close()
+
+
+def parse():
     ap = argparse.ArgumentParser()
     ap.add_argument("--image", required = True, help = "Path to the image")
     ap.add_argument("-debug", action="store_true", help = "Debug mode to display images of the various steps")
@@ -109,5 +130,7 @@ def parse():
     warped = scan(image, debug, effect)
 
     cv2.imwrite("output.png", warped)
+    ocr(warped)
+
 
 parse()
