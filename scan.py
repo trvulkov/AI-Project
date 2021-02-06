@@ -57,6 +57,7 @@ def scan(image, debug, effect): # performs edge detection and returns the releva
         cv2.imshow("Image", image)
         cv2.imshow("Edged", edged)
 
+
     # we assume that:
     # (1) the document to be scanned is the main focus of the image
     # (2) the document is rectangular, and thus will have four distinct edges
@@ -81,6 +82,7 @@ def scan(image, debug, effect): # performs edge detection and returns the releva
         cv2.drawContours(image, [screenContour], -1, (0, 255, 0), 2)
         cv2.imshow("Outline", image)
 
+
     # apply the four point transform to obtain a top-down view of the original image
     warped = four_point_transform(orig, screenContour.reshape(4, 2) * ratio)
 
@@ -96,17 +98,18 @@ def scan(image, debug, effect): # performs edge detection and returns the releva
 
     return warped
 
-def ocr(image):
-    #img = image.copy()
-    img = cv2.imread('./output.png')
+def ocr(image, is_grayscale):
+    img = image.copy()
 
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) # grayscale
-    gray, img_bin = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-    gray = cv2.bitwise_not(img_bin)
-
+    if not is_grayscale:
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) # grayscale
+    img, img_bin = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU) # thresholding
+    img = cv2.bitwise_not(img_bin) # convert to binary image (only black & white pixels)
+    
+    # morphological operations to remove noise around the characters
     kernel = np.ones((2, 1), np.uint8)
-    img = cv2.erode(gray, kernel, iterations=1)
-    img = cv2.dilate(img, kernel, iterations=1)
+    img = cv2.erode(img, kernel, iterations=1) # erosion
+    img = cv2.dilate(img, kernel, iterations=1) # dilation
 
     result = pytesseract.image_to_string(img, lang="bul")
 
@@ -120,17 +123,15 @@ def parse():
     ap.add_argument("--image", required = True, help = "Path to the image")
     ap.add_argument("-debug", action="store_true", help = "Debug mode to display images of the various steps")
     ap.add_argument("-effect", action="store_true", help = "Convert the final image to grayscale and apply a threshold to give it the look of scanned paper")
+    ap.add_argument("-ocr", action="store_true", help = "Perform OCR on the final image and save the results to a text file")
 
     args = vars(ap.parse_args())
 
-    image = cv2.imread(args["image"])
-    debug = args["debug"]
-    effect = args["effect"]
+    warped = scan(cv2.imread(args["image"]), args["debug"], args["effect"])
 
-    warped = scan(image, debug, effect)
+    if args["ocr"]:
+        ocr(warped, args["effect"])
 
     cv2.imwrite("output.png", warped)
-    ocr(warped)
-
 
 parse()
