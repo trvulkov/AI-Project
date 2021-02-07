@@ -4,7 +4,6 @@ import cv2
 import imutils
 from skimage.filters import threshold_local
 import pytesseract
-#from canny import cannyEdgeDetector
 
 # all lists of points must maintain a consistent order: top-left, top-right, bottom-right, bottom-left
 def order_points(pts): # takes a list of 4 points and returns them in the proper order
@@ -89,8 +88,9 @@ def scan(image, debug, effect): # performs edge detection and returns the releva
     if effect:
         # convert the warped image to grayscale, then threshold it to give it that 'black and white' paper effect
         warped = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
-        T = threshold_local(warped, 33, offset = 10, method = "gaussian")
+        T = threshold_local(warped, 23, offset = 10, method = "gaussian")
         warped = (warped > T).astype("uint8") * 255
+
 
     if debug: # show the scanned image
         cv2.imshow("Scanned", imutils.resize(warped, height = 500))
@@ -103,7 +103,7 @@ def ocr(image, is_grayscale):
 
     if not is_grayscale:
         img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) # grayscale
-    img, img_bin = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU) # thresholding
+    ret, img_bin = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU) # thresholding
     img = cv2.bitwise_not(img_bin) # convert to binary image (only black & white pixels)
     
     # morphological operations to remove noise around the characters
